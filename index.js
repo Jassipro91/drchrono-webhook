@@ -1,41 +1,61 @@
 const express = require("express");
-const crypto = require("crypto");
 
 const app = express();
 app.use(express.json());
 
-const SECRET = "hubspot123"; // SAME as DrChrono
+const PORT = process.env.PORT || 3000;
 
-// 🔥 VERIFICATION HANDLER (IMPORTANT)
-app.get("/webhook", (req, res) => {
-  console.log("Verification request received");
-
-  const msg = req.query.msg;
-
-  if (!msg) {
-    return res.status(200).send("No msg");
-  }
-
-  const hash = crypto
-    .createHmac("sha256", SECRET)
-    .update(msg)
-    .digest("hex");
-
-  return res.json({
-    secrettoken: hash
-  });
+// ✅ ROOT CHECK (optional but useful)
+app.get("/", (req, res) => {
+  res.send("DrChrono webhook server is running");
 });
 
-// 🔥 ACTUAL WEBHOOK EVENTS
+// 🔥 MAIN WEBHOOK ENDPOINT
 app.post("/webhook", (req, res) => {
-  console.log("Webhook received:");
-  console.log(req.body);
+  const event = req.headers["x-drchrono-event"];
 
+  console.log("=================================");
+  console.log("📩 Incoming Webhook");
+  console.log("Event:", event);
+  console.log("Headers:", req.headers);
+  console.log("Body:", JSON.stringify(req.body, null, 2));
+  console.log("=================================");
+
+  // ✅ STEP 1: HANDLE VERIFICATION (PING)
+  if (event === "PING") {
+    console.log("✅ PING received → Verification success");
+
+    return res.status(200).json({
+      status: "ok"
+    });
+  }
+
+  // ✅ STEP 2: HANDLE REAL EVENTS
+  if (event === "APPOINTMENT_CREATE" || event === "APPOINTMENT_MODIFY") {
+    console.log("📅 Appointment Event");
+
+    const appointment = req.body;
+
+    console.log("Patient ID:", appointment.patient);
+    console.log("Scheduled Time:", appointment.scheduled_time);
+    console.log("Reason:", appointment.reason);
+
+    // 👉 Here later we will send data to Zapier
+  }
+
+  if (event === "PATIENT_CREATE" || event === "PATIENT_MODIFY") {
+    console.log("👤 Patient Event");
+
+    const patient = req.body;
+
+    console.log("Patient Data:", patient);
+  }
+
+  // ✅ ALWAYS RETURN 200
   res.status(200).json({ success: true });
 });
 
-const PORT = process.env.PORT || 3000;
-
+// 🚀 START SERVER
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
