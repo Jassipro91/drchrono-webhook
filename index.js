@@ -5,12 +5,12 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-// ✅ ROOT CHECK (optional but useful)
+// ✅ Health check (optional)
 app.get("/", (req, res) => {
-  res.send("DrChrono webhook server is running");
+  res.send("DrChrono webhook server running");
 });
 
-// 🔥 MAIN WEBHOOK ENDPOINT
+// 🔥 MAIN WEBHOOK
 app.post("/webhook", (req, res) => {
   const event = req.headers["x-drchrono-event"];
 
@@ -21,38 +21,30 @@ app.post("/webhook", (req, res) => {
   console.log("Body:", JSON.stringify(req.body, null, 2));
   console.log("=================================");
 
-  // ✅ STEP 1: HANDLE VERIFICATION (PING)
+  // ✅ FINAL FIX: PING VERIFICATION (EMPTY 200 RESPONSE)
   if (event === "PING") {
-    console.log("✅ PING received → Verification success");
-
-    return res.status(200).json({
-      status: "ok"
-    });
+    console.log("✅ PING received → sending 200 OK (no body)");
+    return res.sendStatus(200); // 🔥 THIS IS THE KEY
   }
 
-  // ✅ STEP 2: HANDLE REAL EVENTS
+  // ✅ HANDLE APPOINTMENT EVENTS
   if (event === "APPOINTMENT_CREATE" || event === "APPOINTMENT_MODIFY") {
-    console.log("📅 Appointment Event");
-
     const appointment = req.body;
 
+    console.log("📅 Appointment Event");
     console.log("Patient ID:", appointment.patient);
     console.log("Scheduled Time:", appointment.scheduled_time);
     console.log("Reason:", appointment.reason);
-
-    // 👉 Here later we will send data to Zapier
   }
 
+  // ✅ HANDLE PATIENT EVENTS
   if (event === "PATIENT_CREATE" || event === "PATIENT_MODIFY") {
     console.log("👤 Patient Event");
-
-    const patient = req.body;
-
-    console.log("Patient Data:", patient);
+    console.log(req.body);
   }
 
-  // ✅ ALWAYS RETURN 200
-  res.status(200).json({ success: true });
+  // ✅ ALWAYS RESPOND SUCCESS
+  return res.sendStatus(200);
 });
 
 // 🚀 START SERVER
