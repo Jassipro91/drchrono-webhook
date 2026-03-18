@@ -1,27 +1,39 @@
 const express = require("express");
-const app = express();
+const crypto = require("crypto");
 
-// Middleware to read JSON body
+const app = express();
 app.use(express.json());
 
-// Health check (optional but useful)
-app.get("/", (req, res) => {
-  res.send("Webhook server is running");
-});
+const SECRET = "hubspot123"; // SAME as DrChrono
 
-// 🔥 MAIN WEBHOOK ENDPOINT
-app.post("/webhook", (req, res) => {
-  console.log("Webhook received:");
-  console.log("Headers:", req.headers);
-  console.log("Body:", req.body);
+// 🔥 VERIFICATION HANDLER (IMPORTANT)
+app.get("/webhook", (req, res) => {
+  console.log("Verification request received");
 
-  // ✅ IMPORTANT: This response is REQUIRED for DrChrono verification
-  res.status(200).json({
-    status: "verified"
+  const msg = req.query.msg;
+
+  if (!msg) {
+    return res.status(200).send("No msg");
+  }
+
+  const hash = crypto
+    .createHmac("sha256", SECRET)
+    .update(msg)
+    .digest("hex");
+
+  return res.json({
+    secrettoken: hash
   });
 });
 
-// Use dynamic port (VERY IMPORTANT for Render)
+// 🔥 ACTUAL WEBHOOK EVENTS
+app.post("/webhook", (req, res) => {
+  console.log("Webhook received:");
+  console.log(req.body);
+
+  res.status(200).json({ success: true });
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
