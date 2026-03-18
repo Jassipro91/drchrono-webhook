@@ -1,110 +1,71 @@
-// index.js
 const express = require("express");
 const crypto = require("crypto");
 
 const app = express();
 
-// other routes (if any) can use JSON normally
-app.use(express.json());
+const PORT = process.env.PORT || 10000;
+const SECRET = "hubspot123";
 
-// Use raw body parser ONLY for the webhook route to preserve exact bytes for HMAC
-const rawBodyMiddleware = express.raw({ type: "*/*", limit: "1mb" });
+// ✅ WEBHOOK ROUTE (RAW BODY REQUIRED)
+app.post("/webhook", express.raw({ type: "*/*" }), (req, res) => {
+const rawBody = req.body;
+const event = req.headers["x-drchrono-event"];
+const signature = req.headers["x-drchrono-signature"];
 
-const PORT = process.env.PORT || 3000;
-// Use environment variable SECRET (set this in Render). Fallback for local testing:
-const SECRET = process.env.SECRET || "hubspot123";
+console.log("=================================");
+console.log("📩 Incoming Webhook");
+console.log("Event:", event);
+console.log("Signature:", signature);
+console.log("=================================");
 
-/**
- * Constant-time compare
- */
-function safeEqual(a, b) {
-  try {
-    const bufA = Buffer.from(String(a || ""), "utf8");
-    const bufB = Buffer.from(String(b || ""), "utf8");
-    if (bufA.length !== bufB.length) return false;
-    return crypto.timingSafeEqual(bufA, bufB);
-  } catch (e) {
-    return false;
-  }
+// ✅ VERIFY SIGNATURE
+let isValid = false;
+
+try {
+const expected = crypto
+.createHmac("sha256", SECRET)
+.update(rawBody)
+.digest("hex");
+
+```
+if (signature === expected || signature === SECRET) {
+  isValid = true;
+}
+```
+
+} catch (err) {
+console.log("⚠️ Signature error:", err.message);
 }
 
-/**
- * Verify signature:
- * - DrChrono sometimes sends the raw secret token in header x-drchrono-signature
- * - Or it may send a HMAC-SHA256 hex digest of the raw body
- * We accept either (header === SECRET) OR (header === hex(hmacSHA256(rawBody, SECRET)))
- */
-function verifySignature(rawBuffer, signatureHeader) {
-  if (!signatureHeader) return false;
-
-  // Accept direct token match first (simple)
-  if (safeEqual(signatureHeader, SECRET)) return true;
-
-  // Compute HMAC-SHA256(hex) of raw bytes
-  const hmac = crypto.createHmac("sha256", SECRET).update(rawBuffer).digest("hex");
-  if (safeEqual(signatureHeader, hmac)) return true;
-
-  return false;
+if (!isValid) {
+console.log("❌ Invalid signature");
+return res.status(401).end();
 }
 
-/**
- * Webhook endpoint — use raw parser so HMAC is correct
- */
-app.post("/webhook", rawBodyMiddleware, (req, res) => {
-  try {
-    const raw = req.body; // Buffer
-    const headers = req.headers;
-    const event = headers["x-drchrono-event"] || headers["x-drchrono-event".toLowerCase()];
-    const signature = headers["x-drchrono-signature"] || "";
+// ✅ HANDLE VERIFICATION (PING)
+if (event === "PING") {
+console.log("✅ PING verified → sending empty 200");
+return res.status(200).end(); // 🔥 IMPORTANT
+}
 
-    console.log("=================================");
-    console.log("📩 Incoming Webhook");
-    console.log("Event:", event);
-    console.log("Signature:", signature);
-    console.log("=================================");
+// ✅ NORMAL EVENTS
+let data = {};
+try {
+data = JSON.parse(rawBody.toString());
+} catch (e) {
+console.log("⚠️ JSON parse failed");
+}
 
-    // Verify signature
-    const verified = verifySignature(raw, signature);
-    if (!verified) {
-      console.log("❌ Signature verification failed");
-      return res.sendStatus(401);
-    }
+console.log("📦 Data:", data);
 
-    // PING verification (Dr.Chrono uses PING for verifying webhooks)
-    if (String(event).toUpperCase() === "PING") {
-      console.log("✅ PING verified");
-      // DrChrono expects a 200 OK (no body). Send 200 with no JSON body.
-      return res.status(200).end();
-    }
-
-    // Try to parse JSON payload (safe)
-    let bodyJson = null;
-    try {
-      bodyJson = raw && raw.length ? JSON.parse(raw.toString("utf8")) : null;
-    } catch (e) {
-      console.log("⚠️ Warning: failed to parse JSON body:", e && e.message);
-    }
-
-    // Log the event and payload for debugging
-    console.log("📥 Event:", event);
-    console.log("📦 Payload:", JSON.stringify(bodyJson, null, 2));
-
-    // TODO: here you can forward to Zapier (catch hook URL) or process however you like.
-    // Example: POST to Zapier catch URL (uncomment and add axios if you want)
-    // const axios = require('axios');
-    // await axios.post(process.env.ZAPIER_URL, bodyJson || raw, { headers: { 'Content-Type': 'application/json' } });
-
-    return res.status(200).json({ status: "ok" });
-  } catch (err) {
-    console.error("❗ Error handling webhook:", err);
-    return res.sendStatus(500);
-  }
+return res.status(200).end();
 });
 
+// Health check
 app.get("/", (req, res) => {
-  res.send("Webhook listener running");
+res.send("Server running");
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+console.log(`🚀 Server running on port ${PORT}`);
 });
