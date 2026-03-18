@@ -4,49 +4,54 @@ const crypto = require("crypto");
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 const SECRET = "hubspot123";
 
-// 🔥 VERIFY SIGNATURE FUNCTION
+// ✅ VERIFY SIGNATURE FUNCTION
 function verifySignature(req) {
-  const signature = req.headers["x-drchrono-signature"];
-  const body = JSON.stringify(req.body);
+const signature = req.headers["x-drchrono-signature"];
+const body = JSON.stringify(req.body);
 
-  const expected = crypto
-    .createHmac("sha256", SECRET)
-    .update(body)
-    .digest("hex");
+const expected = crypto
+.createHmac("sha256", SECRET)
+.update(body)
+.digest("hex");
 
-  return signature === expected || signature === SECRET;
+// allow both (DrChrono sometimes sends plain token during verification)
+return signature === expected || signature === SECRET;
 }
 
-// 🔥 WEBHOOK
+// ✅ WEBHOOK ROUTE
 app.post("/webhook", (req, res) => {
-  const event = req.headers["x-drchrono-event"];
+const event = req.headers["x-drchrono-event"];
+const signature = req.headers["x-drchrono-signature"];
 
-  console.log("=================================");
-  console.log("Event:", event);
-  console.log("Signature:", req.headers["x-drchrono-signature"]);
-  console.log("=================================");
+console.log("=================================");
+console.log("📩 Incoming Webhook");
+console.log("Event:", event);
+console.log("Signature:", signature);
+console.log("=================================");
 
-  // ✅ VERIFY SIGNATURE
-  if (!verifySignature(req)) {
-    console.log("❌ Invalid signature");
-    return res.sendStatus(401);
-  }
+// ❌ INVALID SIGNATURE
+if (!verifySignature(req)) {
+console.log("❌ Invalid signature");
+return res.status(401).end(); // IMPORTANT: empty response
+}
 
-  // ✅ HANDLE PING (VERIFICATION)
-  if (event === "PING") {
-    console.log("✅ PING verified");
-    return res.sendStatus(200);
-  }
+// ✅ PING (VERIFICATION)
+if (event === "PING") {
+console.log("✅ PING verified → sending empty 200 OK");
+return res.status(200).end(); // 🔥 MUST BE EMPTY
+}
 
-  // ✅ NORMAL EVENTS
-  console.log("📩 Data received:", req.body);
+// ✅ NORMAL EVENTS
+console.log("📦 Data received:");
+console.log(JSON.stringify(req.body, null, 2));
 
-  return res.sendStatus(200);
+return res.status(200).end(); // 🔥 MUST BE EMPTY
 });
 
+// ✅ SERVER START
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+console.log(`🚀 Server running on port ${PORT}`);
 });
