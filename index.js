@@ -1,37 +1,27 @@
-const express = require('express');
-const fetch = require('node-fetch');
-const bodyParser = require('body-parser');
-
+const express = require("express");
 const app = express();
-app.use(bodyParser.json());
 
-const SECRET = process.env.SECRET || "hubspot123";
-const ZAPIER_WEBHOOK = process.env.ZAPIER_WEBHOOK;
+// Middleware to read JSON body
+app.use(express.json());
 
-app.post('/webhook', async (req, res) => {
-  try {
-    const token =
-      req.headers['x-drchrono-signature'] ||
-      req.body.secret ||
-      req.query.secret;
-
-    if (token && token !== SECRET) {
-      return res.status(403).send("Invalid token");
-    }
-
-    res.status(200).send("OK");
-
-    await fetch(ZAPIER_WEBHOOK, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req.body),
-    });
-
-  } catch (err) {
-    console.error(err);
-  }
+// Health check (optional but useful)
+app.get("/", (req, res) => {
+  res.send("Webhook server is running");
 });
 
+// 🔥 MAIN WEBHOOK ENDPOINT
+app.post("/webhook", (req, res) => {
+  console.log("Webhook received:");
+  console.log("Headers:", req.headers);
+  console.log("Body:", req.body);
+
+  // ✅ IMPORTANT: This response is REQUIRED for DrChrono verification
+  res.status(200).json({
+    status: "verified"
+  });
+});
+
+// Use dynamic port (VERY IMPORTANT for Render)
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
